@@ -244,19 +244,21 @@ int main(int argc, char **argv) {
   string defaultModuleName;
 
   // look for _init
-  if (defaultModuleName.empty()) {
+  if (defaultModuleName.empty()) {    
     for (moduleIter = modules->begin(); moduleIter != modules->end(); ++moduleIter) {
       funcsInModule = (*moduleIter)->getProcedures();
       vector < BPatch_function * >::iterator funcsIterator;
+      
       for (funcsIterator = funcsInModule->begin(); funcsIterator != funcsInModule->end(); ++funcsIterator) {
         char funcName[1024];
+        char moduleName[1024];
 
         (*funcsIterator)->getName(funcName, 1024);
+        
         if (string(funcName) == string("_init")) {
-          char moduleName[1024];
-
           (*moduleIter)->getName(moduleName, 1024);
           defaultModuleName = string(moduleName);
+          
           if (verbose) {
             cout << "Found _init in " << moduleName << endl;
           }
@@ -304,8 +306,10 @@ int main(int argc, char **argv) {
         continue;
       }
     }
-
-    if (string(moduleName).find(defaultModuleName) != string::npos) {
+    /* ONLY CHANGE NEEDED TO FIX INIT BUG */
+    //if (string(moduleName).find(defaultModuleName) != string::npos)
+    if (string(moduleName) == defaultModuleName) {
+      cout << moduleName << endl;
       defaultModule = (*moduleIter);
       if (skipMainModule)
         continue;

@@ -4,7 +4,7 @@
 #include <cstring>
 #include <vector>
 #include <algorithm>
-#include "config.h"
+#include "/media/sf_fuzzing-preprocessing-stuff/afl-2.52b/config.h"
 #include <sys/types.h>
 #include <sys/shm.h>
 #include <unistd.h>
@@ -23,6 +23,7 @@ static long saved_di;
 register long rdi asm("di");    // the warning is fine - we need the warning because of a bug in dyninst
 
 void initAflForkServer() {
+
   char *shm_env_var = getenv(SHM_ENV_VAR);
 
   if (!shm_env_var) {
@@ -39,7 +40,7 @@ void initAflForkServer() {
   int n = write(FORKSRV_FD + 1, &__afl_temp_data, 4);
 
   if (n != 4) {
-    printf("Error writting fork server\n");
+    printf("Error writing fork server\n");
     return;
   }
   while (1) {
