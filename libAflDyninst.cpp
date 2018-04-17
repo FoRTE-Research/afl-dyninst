@@ -4,7 +4,7 @@
 #include <cstring>
 #include <vector>
 #include <algorithm>
-#include "/media/sf_fuzzing-preprocessing-stuff/afl-2.52b/config.h"
+#include "config.h"
 #include <sys/types.h>
 #include <sys/shm.h>
 #include <unistd.h>
