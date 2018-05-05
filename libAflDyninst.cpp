@@ -72,11 +72,11 @@ void initAflForkServer() {
     }
     
     // parrent stuff
-    // Inform controller that we started a new run
+    /*/ Inform controller that we started a new run
     if (write(FORKSRV_FD + 1, &__afl_fork_pid, 4) != 4) {
       perror("Fork server write(pid) failed");
       exit(EXIT_FAILURE);
-    }
+      }*/
     
     // Sleep until child/worker finishes
     if (waitpid(__afl_fork_pid, &__afl_temp_data, 0) < 0) {
