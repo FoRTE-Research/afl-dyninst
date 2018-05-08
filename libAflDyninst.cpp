@@ -14,6 +14,7 @@
 
 using namespace std;
 
+static bool firstRound = true;
 static u8 *trace_bits;
 static s32 shm_id;
 static int __afl_temp_data;
@@ -52,11 +53,14 @@ void initAflForkServer() {
   while (1) {
     n = read(FORKSRV_FD, &__afl_temp_data, 4);
     if (n != 4) {
-      printf("Error reading fork server %x\n", __afl_temp_data);
-      exit(EXIT_FAILURE);
-      return;
+      if(firstRound) {
+	perror("Error reading fork server");
+	exit(EXIT_FAILURE);
+      }
+      exit(EXIT_SUCCESS);
     }
-
+    firstRound = false;
+    
     __afl_fork_pid = fork();
     if (__afl_fork_pid < 0) {
       perror("Error on fork()\n");
@@ -72,11 +76,11 @@ void initAflForkServer() {
     }
     
     // parrent stuff
-    /*/ Inform controller that we started a new run
+    // Inform controller that we started a new run
     if (write(FORKSRV_FD + 1, &__afl_fork_pid, 4) != 4) {
       perror("Fork server write(pid) failed");
       exit(EXIT_FAILURE);
-      }*/
+      }
     
     // Sleep until child/worker finishes
     if (waitpid(__afl_fork_pid, &__afl_temp_data, 0) < 0) {
