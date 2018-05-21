@@ -1,4 +1,4 @@
-DYN_ROOT = /usr/local
+DYN_ROOT = /mnt/bigdata_grade10/dynBuildDir
 CXX = g++
 CXXFLAGS = -g -Wall -O3 -std=c++11
 LIBFLAGS = -fpic -shared
