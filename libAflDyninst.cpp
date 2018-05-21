@@ -14,7 +14,6 @@
 
 using namespace std;
 
-static bool firstRound = true;
 static u8 *trace_bits;
 static s32 shm_id;
 static int __afl_temp_data;
@@ -53,14 +52,10 @@ void initAflForkServer() {
   while (1) {
     n = read(FORKSRV_FD, &__afl_temp_data, 4);
     if (n != 4) {
-      if(firstRound) {
-	perror("Error reading fork server");
-	exit(EXIT_FAILURE);
-      }
-      exit(EXIT_SUCCESS);
-    }
-    firstRound = false;
-    
+      perror("Error reading fork server");
+      exit(EXIT_FAILURE);
+    }  
+
     __afl_fork_pid = fork();
     if (__afl_fork_pid < 0) {
       perror("Error on fork()\n");

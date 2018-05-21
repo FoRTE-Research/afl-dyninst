@@ -227,6 +227,12 @@ int main(int argc, char **argv) {
   }
 
   BPatch bpatch;
+
+  /* The three options afterwards prevent Segfaults on some systems. No idea why. */ 
+  bpatch.setDelayedParsing(true);
+  bpatch.setLivenessAnalysis(false);
+  bpatch.setMergeTramp(false);
+  
   BPatch_binaryEdit *appBin = bpatch.openBinary(originalBinary, instrumentLibraries.size() != 1);
 
   if (appBin == NULL) {
