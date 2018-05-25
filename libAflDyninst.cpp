@@ -45,6 +45,10 @@ void initAflForkServer() {
   int n = write(FORKSRV_FD + 1, &__afl_temp_data, 4);
 
   if (n != 4) {
+    /* We have a special message to tell the forkserver to stop */
+    if(n == 2)
+      exit(EXIT_SUCCESS);
+    
     perror("Error writing fork server\n");
     exit(EXIT_FAILURE);
     return;
