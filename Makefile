@@ -1,4 +1,4 @@
-DYN_ROOT = /mnt/bigdata_grade10/dynBuildDir
+DYN_ROOT = /home/mdhicks2/Desktop/dynInstall
 CXX = g++
 CXXFLAGS = -g -Wall -O3 -std=c++11
 LIBFLAGS = -fpic -shared
@@ -13,7 +13,7 @@ libAflDyninst.so: libAflDyninst.cpp
 	$(CXX) $(CXXFLAGS) -o libAflDyninst.so libAflDyninst.cpp $(LDFLAGS) $(LIBFLAGS)
 
 instrument:
-	./afl-dyninst -i djpeg -o djpegInst -v
+	./afl-dyninst -i ${FSF_BENCH_PATH}/${FSF_BENCH} -o ${FSF_BENCH_PATH}/${FSF_BENCH}Inst -v
 
 install:
 	install afl-dyninst $(DYN_ROOT)/bin
