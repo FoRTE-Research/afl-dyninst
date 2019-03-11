@@ -29,15 +29,21 @@ static unsigned int prevBlkID;
 /* Optional trace path. */
 static char* tracePath;
 
-int firstRun = 1;
-
 /* Forkserver variant with tracer file descriptors + SHM. */
 void forkServer() {
 	int temp_data;
 	pid_t fork_pid;
 
-	if (getenv("AFL_TRACE_PATH"))
-		tracePath = getenv("AFL_TRACE_PATH");
+	/* Trace path (optional) */
+	if (getenv("TRACE_PATH")) {
+		tracePath = getenv("TRACE_PATH");
+		static FILE *traceFile = fopen(tracePath, "w"); 
+		fclose(traceFile);
+	}
+
+	/* Skip forkserver (optional) */
+	if (getenv("SKIP_FSRV"))
+		return;
 
 	/* Set up the SHM bitmap. */
 	char *shm_env_var = getenv(SHM_ENV_VAR);
@@ -61,18 +67,6 @@ void forkServer() {
 	
 	/* All right, let's await orders... */
 	while (1) {
-
-		/* Delimit path trace (optional) */
-		if (firstRun==0) {
-			if (getenv("AFL_TRACE_PATH") && getenv("AFL_TRACE_DELIMIT")) {
-				static FILE *traceFile = fopen(tracePath, "a+");
-				if (fseek(traceFile, -1, SEEK_END) != 0) return;
-				fprintf(traceFile, "\n");  
-	  		}
-	  	}
-
-	  	else firstRun = 0;
-
 		/* Parent - Verify status message length. */
 		int stMsgLen = read(FORKSRV_FD, &temp_data, 4);
 		if (stMsgLen != 4) {
@@ -126,14 +120,10 @@ void traceBlocks(unsigned int curBlkID)
 	if (trace_bits)
 		trace_bits[curBlkID]++;
 
-	/* Trace path (optional - with delimiting) */
-	if (getenv("AFL_TRACE_PATH") && getenv("AFL_TRACE_DELIMIT")) {
-		static FILE *traceFile = fopen(tracePath, "a+");
-		fprintf(traceFile, "%i,", curBlkID);  
-	}
 	/* Trace path (optional) */
-	if (getenv("AFL_TRACE_PATH") && !getenv("AFL_TRACE_DELIMIT")) {
-		static FILE *traceFile = fopen(tracePath, "w");
+	if (getenv("TRACE_PATH")) {
+		tracePath = getenv("TRACE_PATH");
+		static FILE *traceFile = fopen(tracePath, "a");
 		fprintf(traceFile, "%i,", curBlkID);  
 	}	
 }
@@ -159,15 +149,11 @@ void traceEdges(unsigned int curBlkID){
 
 	if (trace_bits)
 		trace_bits[pos]++;
-	
-	/* Trace path (optional - with delimiting) */
-	if (getenv("AFL_TRACE_PATH") && getenv("AFL_TRACE_DELIMIT")) {
-		static FILE *traceFile = fopen(tracePath, "a+");
-		fprintf(traceFile, "%i,", curBlkID);  
-	}
+
 	/* Trace path (optional) */
-	if (getenv("AFL_TRACE_PATH") && !getenv("AFL_TRACE_DELIMIT")) {
-		static FILE *traceFile = fopen(tracePath, "w");
+	if (getenv("TRACE_PATH")) {
+		tracePath = getenv("TRACE_PATH");
+		static FILE *traceFile = fopen(tracePath, "a");
 		fprintf(traceFile, "%i,", curBlkID);  
 	}	
 }
@@ -180,14 +166,10 @@ void traceEdgesOrig(unsigned int curBlkID){
 		prevBlkID = curBlkID >> 1;
 	}
 
-	/* Trace path (optional - with delimiting) */
-	if (getenv("AFL_TRACE_PATH") && getenv("AFL_TRACE_DELIMIT")) {
-		static FILE *traceFile = fopen(tracePath, "a+");
-		fprintf(traceFile, "%i,", curBlkID);  
-	}
 	/* Trace path (optional) */
-	if (getenv("AFL_TRACE_PATH") && !getenv("AFL_TRACE_DELIMIT")) {
-		static FILE *traceFile = fopen(tracePath, "w");
+	if (getenv("TRACE_PATH")) {
+		tracePath = getenv("TRACE_PATH");
+		static FILE *traceFile = fopen(tracePath, "a");
 		fprintf(traceFile, "%i,", curBlkID);  
 	}	
 }
