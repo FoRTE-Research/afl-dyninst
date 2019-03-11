@@ -1,23 +1,19 @@
-DYN_ROOT = /home/mdhicks2/Desktop/dynInstall
-CXX = g++
-CXXFLAGS = -g -Wall -O3 -std=c++11
-LIBFLAGS = -fpic -shared
-LDFLAGS = -I/usr/include -I$(DYN_ROOT)/include -L$(DYN_ROOT)/lib -lcommon -liberty -ldyninstAPI 
+# AFLDyninst vars - edit DYN_ROOT accordingly
 
-all:  afl-dyninst libAflDyninst.so
+DYN_ROOT 	= /home/osboxes/Desktop/dynBuildDir
+CC 			= gcc 
+CXX 		= g++
+CXXFLAGS 	= -g -Wall -O3 -std=c++11
+LIBFLAGS 	= -fpic -shared
+LDFLAGS 	= -I/usr/include -I$(DYN_ROOT)/include -L$(DYN_ROOT)/lib -lcommon -liberty -ldyninstAPI -lboost_system
 
-afl-dyninst: afl-dyninst.cpp
-	$(CXX) $(CXXFLAGS) -o afl-dyninst afl-dyninst.cpp $(LDFLAGS)
+all: libAFLDyninst AFLDyninst 
 
-libAflDyninst.so: libAflDyninst.cpp
-	$(CXX) $(CXXFLAGS) -o libAflDyninst.so libAflDyninst.cpp $(LDFLAGS) $(LIBFLAGS)
+libAFLDyninst: libAFLDyninst.cpp
+	$(CXX) $(CXXFLAGS) -o libAFLDyninst.so libAFLDyninst.cpp $(LDFLAGS) $(LIBFLAGS) MurmurHash3.cpp
 
-instrument:
-	./afl-dyninst -i ${FSF_BENCH_PATH}/${FSF_BENCH} -o ${FSF_BENCH_PATH}/${FSF_BENCH}Inst -v
-
-install:
-	install afl-dyninst $(DYN_ROOT)/bin
-	install libAflDyninst.so $(DYN_ROOT)/lib
+AFLDyninst: AFLDyninst.cpp
+	$(CXX) -Wl,-rpath-link,$(DYN_ROOT)/lib -Wl,-rpath-link,$(DYN_ROOT)/include $(CXXFLAGS) -o AFLDyninst AFLDyninst.cpp $(LDFLAGS)
 
 clean:
-	rm -f afl-dyninst libAflDyninst.so *.o 
+	rm -rf AFLDyninst libAFLDyninst.so *.o 

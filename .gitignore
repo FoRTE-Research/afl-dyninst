@@ -5,6 +5,8 @@ afl-dyninst/
 qemu-2.10.2/
 qemu-patches/
 test/
+AFLDyninst
+libAFLDyninst.so
 
 # Prerequisites
 *.d
