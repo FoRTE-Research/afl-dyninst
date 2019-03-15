@@ -7,7 +7,7 @@ CXXFLAGS 	= -g -Wall -O3 -std=c++11
 LIBFLAGS 	= -fpic -shared
 LDFLAGS 	= -I/usr/include -I$(DYN_ROOT)/include -L$(DYN_ROOT)/lib -lcommon -liberty -ldyninstAPI -lboost_system
 
-all: libAFLDyninst AFLDyninst 
+all: AFLDyninst libAFLDyninst
 
 libAFLDyninst: libAFLDyninst.cpp
 	$(CXX) $(CXXFLAGS) -o libAFLDyninst.so libAFLDyninst.cpp $(LDFLAGS) $(LIBFLAGS) MurmurHash3.cpp
