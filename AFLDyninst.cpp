@@ -77,7 +77,7 @@ void initSkipLibraries ()
 	return;
 }
 
-const char *instLibrary = "libAFLDyninst.so";
+const char *instLibrary = "libAflDyninst.so";
 
 static const char *OPT_STR = "M:N:X:Ll:r:A:O:F:BEeDI:Vx";
 static const char *USAGE = " [input_binary] [analysis_options] [inst_options]\n \
