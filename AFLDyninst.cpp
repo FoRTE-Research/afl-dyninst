@@ -63,7 +63,7 @@ BPatch_function *traceEdgesOrig;
 void initSkipLibraries ()
 {
 	/* List of shared libraries to skip instrumenting. */
-	skipLibraries.insert ("libAFLDyninst.so");		
+	skipLibraries.insert ("libAflDyninst.so");		
 	skipLibraries.insert ("libc.so.6");
 	skipLibraries.insert ("libc.so.7");
 	skipLibraries.insert ("ld-2.5.so");
