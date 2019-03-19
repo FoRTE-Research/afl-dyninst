@@ -472,15 +472,15 @@ int main(int argc, char **argv) {
 	BPatch bpatch;
 	
 	/* Performance-related options. */ 
-	bpatch.setDelayedParsing(true); 	/* ??? 							*/
-	bpatch.setLivenessAnalysis(false); 	/* ++speed on true (but crashes)*/
-	bpatch.setMergeTramp(true); 		/* ++speed on true 				*/
-	bpatch.setInstrStackFrames(false);  /* ++speed on false 			*/
+	bpatch.setDelayedParsing(true); 	/* ??? 							 */
+	bpatch.setLivenessAnalysis(false); 	/* ++speed on true (but crashes) */
+	bpatch.setMergeTramp(true); 		/* ++speed on true 				 */
+	bpatch.setInstrStackFrames(false);  /* ++speed on false 			 */
+	bpatch.setTrampRecursive(true);		/* ++speed on true 				 */
  
 	/* AFL-Dyninst V2 performance boost no.2 */
 	if (perfBoostOpt >= 2) {
-		bpatch.setSaveFPR(false); 		/* ++speed on false 			*/
-		bpatch.setTrampRecursive(true);	/* ++speed on true 				*/
+		bpatch.setSaveFPR(false); 		/* ++speed on false 			 */
 	}
 
 	/* Verify existence of original binary. */
@@ -541,20 +541,19 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	cout << "All done!" << endl;
+	cout << numBlks << " total blocks." << endl;
+	cout << numOutEdges << " total outgoing edges." << endl;
+	cout << numInEdges << " total incoming edges." << endl;
+
 	/* If specified, save the instrumented binary and verify success. */
 	if (outputBinary){
-		if (verbose)
-			cout << "Saving the instrumented binary to " << outputBinary << " ..." << endl;
+		cout << "Saving the instrumented binary to " << outputBinary << " ..." << endl;
 		if (!appBin->writeFile(outputBinary)) {
 			cerr << "Failed to write output file: " << outputBinary << endl;
 			return EXIT_FAILURE;
 		}
 	}
-	if (verbose)
-		cout << "All done!" << endl;
-		cout << numBlks << " total blocks." << endl;
-		cout << numOutEdges << " total outgoing edges." << endl;
-		cout << numInEdges << " total incoming edges." << endl;
 
 	return EXIT_SUCCESS;
 }
