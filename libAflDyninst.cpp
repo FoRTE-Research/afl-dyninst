@@ -119,13 +119,6 @@ void traceBlocks(unsigned int curBlkID)
 
 	if (trace_bits)
 		trace_bits[curBlkID]++;
-
-	/* Trace path (optional) */
-	if (getenv("TRACE_PATH")) {
-		tracePath = getenv("TRACE_PATH");
-		static FILE *traceFile = fopen(tracePath, "a");
-		fprintf(traceFile, "%i,", curBlkID);  
-	}	
 }
 
 /* Edge trace with modified hash (for hopefully fewer collisions). */
@@ -149,13 +142,6 @@ void traceEdges(unsigned int curBlkID){
 
 	if (trace_bits)
 		trace_bits[pos]++;
-
-	/* Trace path (optional) */
-	if (getenv("TRACE_PATH")) {
-		tracePath = getenv("TRACE_PATH");
-		static FILE *traceFile = fopen(tracePath, "a");
-		fprintf(traceFile, "%i,", curBlkID);  
-	}	
 }
 
 /* Original AFL edge trace. */
@@ -165,13 +151,6 @@ void traceEdgesOrig(unsigned int curBlkID){
 		trace_bits[prevBlkID ^ curBlkID]++;
 		prevBlkID = curBlkID >> 1;
 	}
-
-	/* Trace path (optional) */
-	if (getenv("TRACE_PATH")) {
-		tracePath = getenv("TRACE_PATH");
-		static FILE *traceFile = fopen(tracePath, "a");
-		fprintf(traceFile, "%i,", curBlkID);  
-	}	
 }
 
 void saveRdi() {
