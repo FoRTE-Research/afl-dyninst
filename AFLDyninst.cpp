@@ -26,32 +26,27 @@ using namespace Dyninst;
 char *originalBinary;
 char *outputBinary;
 
-char *analyzedBListPath = NULL;
-char *instrumentedBListPath = NULL;
-char *skipListPath = NULL;
-char *tracePath = NULL;
-
-bool skipMainModule = false;
 bool includeSharedLib = false;
 bool verbose = false;
-bool fsrvInstrumented = false;
+
+bool skipUnrecogFuncs = true;
 bool useBlkTracing = false;
 bool useEdgeTracing = false;
-bool useOriginalEdgeTracing = false;
+bool useDynFix = 0;
 
 int numBlksToSkip = 0;
-int dynfix = 0;
 int numInEdges = 0;
 int numOutEdges = 0;
 int numBlks = 0;
+int numBlksInst = 0;
 int perfBoostOpt = 0;
 
+bool fsrvInstrumented = false;
 unsigned int minBlkSize = 1;
 
-Dyninst::Address customEntryAddr;
+Dyninst::Address customFsrvAddr;
 
-set < string > instrumentLibraries;
-set < string > runtimeLibraries;
+set < string > modulesToInstrument;
 set < string > skipLibraries;
 set < unsigned long > skipAddresses;
 
@@ -60,12 +55,12 @@ BPatch_function *saveRdi;
 BPatch_function *restoreRdi;
 BPatch_function *traceBlocks;
 BPatch_function *traceEdges;
-BPatch_function *traceEdgesOrig;
 
 void initSkipLibraries ()
 {
 	/* List of shared libraries to skip instrumenting. */
 	
+	skipLibraries.insert ("libAflDyninst.cpp");	
 	skipLibraries.insert ("libAflDyninst.so");		
 	skipLibraries.insert ("libc.so.6");
 	skipLibraries.insert ("libc.so.7");
@@ -82,82 +77,71 @@ void initSkipLibraries ()
 
 const char *instLibrary = "libAflDyninst.so";
 
-static const char *OPT_STR = "M:N:X:Ll:r:A:O:F:BEeDI:Vx";
+static const char *OPT_STR = "m:n:uo:f:bedvx";
 static const char *USAGE = " [input_binary] [analysis_options] [inst_options]\n \
 	Analysis options:\n \
-		-M: minimum block size (default: 1)\n \
-		-N: number of initial blocks to skip (default: 0)\n \
-		-X: input list of block addresses to skip\n \
-		-L: don't analyze binary, only libraries\n \
-		-l: linked libraries to analyze\n \
-		-r: runtime libraries to analyze\n \
-		-A: output list for all blocks analyzed\n \
+		-m int  - minimum block size (default: 1)\n \
+		-n int  - number of initial blocks to skip (default: 0)\n \
+		-u      - do not skip over unrecognizable functions (recommended\n \
+	              only for closed-src or stripped binaries; default: skip)\n \
 	Instrumentation options:\n \
-		-O: output instrumented binary\n \
-		-F: custom forkserver address (required for stripped binaries)\n \
-		-B: trace blocks\n \
-		-E: trace edges (experimental hashing)\n \
-		-e: trace edges (original AFL tracing)\n \
-		-D: attempt fixing Dyninst register bug\n \
-		-I: output list for all blocks instrumented\n \
+		-o file - output instrumented binary\n \
+		-f addr - custom forkserver address (required for stripped binaries)\n \
+		-b      - trace blocks\n \
+		-e      - trace edges\n \
+		-d      - attempt fixing Dyninst register bug\n \
+		-x      - optimization level 1 (graph optimizations)\n \
+		-xx     - optimization level 2 (Dyninst settings)\n \
 	Additional options:\n \
-		-V: verbose mode\n";
+		-v      - verbose mode\n";
 
 bool parseOptions(int argc, char **argv){
 	originalBinary = argv[1];
+	if (!originalBinary){
+		cerr << "ERROR: Missing input binary!" << endl;
+		cerr << "Usage: " << argv[0] << USAGE;
+		return false;
+	}
+
+	cout << "Analyzing binary: " << originalBinary << endl;
+
+	modulesToInstrument.insert(originalBinary);
 	int c;
 	while ((c = getopt(argc, argv, OPT_STR)) != -1){
 		switch ((char) c) {
+			case 'm':	
+				minBlkSize = atoi(optarg);
+				break;
+			case 'n':
+				numBlksToSkip = atoi(optarg);
+				break;			
+			case 'u': 
+				skipUnrecogFuncs = false;
+				break;
+			case 'o':
+				outputBinary = optarg;
+				break;	
+			case 'f':	
+				customFsrvAddr = strtoul(optarg, NULL, 16);;
+				break;
+			case 'b':
+				useBlkTracing = true;
+				break;
+			case 'e':
+				useEdgeTracing = true;
+				break;			
+			case 'd':
+				useDynFix = true;
+				break;			
 			case 'x':
 				perfBoostOpt++;
 				if (perfBoostOpt > 2){
-					fprintf(stderr, "Warning: maximum performance level is 2\n");
+					cerr << "WARNING: Maximum optimization level is 2." << endl;
         			perfBoostOpt = 2;
         		}
         		break;
-			case 'M':	
-				minBlkSize = atoi(optarg);
-				break;
-			case 'N':
-				numBlksToSkip = atoi(optarg);
-				break;			
-			case 'X':
-            	skipListPath = optarg;
-            	break;
-			case 'L':
-				skipMainModule = true;
-				break;
-			case 'l':
-				instrumentLibraries.insert(optarg);
-				break;
-			case 'r':
-				runtimeLibraries.insert(optarg);
-				break;
-			case 'A':
-	            analyzedBListPath = optarg;
-	            break; 
-			case 'O':
-				outputBinary = optarg;
-				break;	
-			case 'F':	
-				customEntryAddr = strtoul(optarg, NULL, 16);;
-				break;
-			case 'B':
-				useBlkTracing = true;
-				break;
-			case 'E':
-				useEdgeTracing = true;
-				break;
-			case 'e':
-				useOriginalEdgeTracing = true;
-				break;				
-			case 'D':
-				dynfix = 1;
-				break;			
-			case 'I':
-            	instrumentedBListPath = optarg;
-            	break; 	
-			case 'V':
+
+			case 'v':
 				verbose = true;
 				break;
 			default:
@@ -166,33 +150,40 @@ bool parseOptions(int argc, char **argv){
 		}
 	}
 
+	if (!outputBinary && (useEdgeTracing || useBlkTracing)){
+		cerr << "WARNING: Output binary missing - instrumentation will not be applied!\n" << endl;	
+	}	
+
+	if (outputBinary && (!useEdgeTracing && !useBlkTracing)){
+		cerr << "ERROR: Output binary specified but missing instrumentation mode!\n" << endl;
+		cerr << "Usage: " << argv[0] << USAGE;
+		return false;	
+	}	
+
+	if (outputBinary && (useEdgeTracing && useBlkTracing)){
+		cerr << "ERROR: Cannot apply both block AND edge tracing - must select only one!\n" << endl;
+		cerr << "Usage: " << argv[0] << USAGE;
+		return false;		
+	}
+
 	if (originalBinary == NULL) {
-		cerr << "Input binary is required!\n" << endl;
+		cerr << "ERROR: Input binary is required!\n" << endl;
 		cerr << "Usage: " << argv[0] << USAGE;
 		return false;
 	}
-
-	if (skipMainModule && instrumentLibraries.empty()) {
-		cerr << "If using option -L , option -l is required.\n" << endl;
-		cerr << "Usage: " << argv[0] << USAGE;
-		return false;
-	}
-
-	if (analyzedBListPath)
-		remove(analyzedBListPath);
-	if (instrumentedBListPath)
-		remove(instrumentedBListPath);
 
 	return true;
 }
 
-/* Extracts function based on input name. Useful for getting instrumentation library callbacks. */
+/* Extracts function based on input name. Useful 
+ * for getting instrumentation library callbacks. */
 
 BPatch_function *findFuncByName(BPatch_image * appImage, char *curFuncName) {
 	BPatch_Vector < BPatch_function * >funcs;
 
-	if (NULL == appImage->findFunction(curFuncName, funcs) || !funcs.size()
-			|| NULL == funcs[0]) {
+	if (NULL == appImage->findFunction(curFuncName, funcs)
+		|| !funcs.size() || NULL == funcs[0]) {
+		
 		cerr << "Failed to find " << curFuncName << " function." << endl;
 		return NULL;
 	}
@@ -200,10 +191,11 @@ BPatch_function *findFuncByName(BPatch_image * appImage, char *curFuncName) {
 	return funcs[0];
 }
 
-/* Insert callback to initialization function in the instrumentation library. */
+/* Insert callback to initialization function 
+ * in the instrumentation library. */
 
-int insertCallToFsrv(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instIncFunc, BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize){
-	/* init has no args */
+int insertCallToFsrv(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instIncFunc, \
+	BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize){	
 	
 	BPatch_Vector < BPatch_snippet * >instArgs;	 
 	BPatch_funcCallExpr instExprTrace(*instIncFunc, instArgs);
@@ -213,24 +205,25 @@ int insertCallToFsrv(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_functi
 	BPatchSnippetHandle *handle = appBin->insertSnippet(instExprTrace, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 
 	if (!handle) {
-		cerr << "Failed to insert fork server callback." << endl;
+		cerr << "ERROR: Failed to insert fork server callback!" << endl;
 		return EXIT_FAILURE;
 	}
 
 	/* Print some useful info, if requested. */
 	
-	if (verbose)
-		cout << "Inserted fork server callback at 0x" << hex << curBlkAddr << " of " << curFuncName << " of size " << dec << curBlkSize << endl;
+	cout << "SUCCESS: Inserted fork server callback at 0x" << hex << curBlkAddr << " of function "
+	<< curFuncName << " of size " << dec << curBlkSize << endl;
 	
 	return 0;
 }
 
-int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instBlksIncFunc, BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize, unsigned int curBlkID){
+int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instBlksIncFunc, \
+	BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize, unsigned int curBlkID){
 
 	/* Verify curBlk is instrumentable. */
 	
 	if (curBlk == NULL) {
-		cerr << "Failed to find entry at 0x" << hex << curBlkAddr << endl;
+		cerr << "ERROR: Failed to find entry at 0x" << hex << curBlkAddr << endl;
 		return EXIT_FAILURE;
 	}	
 
@@ -247,7 +240,7 @@ int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_fun
 	
 	/* RDI fix handling. */
 	
-	if (dynfix) 
+	if (useDynFix) 
 		handle = appBin->insertSnippet(instExprSaveRdi, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 	
 	/* Instruments the basic block. */
@@ -256,29 +249,23 @@ int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_fun
 	
 	/* Wrap up RDI fix handling. */
 	
-	if (dynfix) 
+	if (useDynFix) 
 		handle = appBin->insertSnippet(instExprRestRdi, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 
-	/* Verify instrumenting worked. If all good, advance blkIndex and return. */
+	/* Verify instrumenting worked. If all good, 
+	 * advance blkIndex and return. */
 	
-	if (!handle) {
-		cerr << "Failed to insert trace callback at 0x" << hex << curBlkAddr << endl;
-	}
+	if (!handle)
+		cerr << "WARNING: Failed to insert trace callback at 0x" << hex << curBlkAddr << endl;
 
-	if (handle){
-		/* If path to output instrumented bb addrs list set, save the addresses of each basic block instrumented to that file. */
-        
-        if (instrumentedBListPath){
-            FILE *blksListFile = fopen(instrumentedBListPath, "a"); 
-            fprintf(blksListFile, "%lu,%u\n", curBlkAddr, curBlkID); 
-            fclose(blksListFile); 
-        } 
-	}
+	if (handle)
+		numBlksInst++;
 
 	/* Print some useful info, if requested. */
 	
 	if (verbose)
-		cout << "Inserted trace callback at 0x" << hex << curBlkAddr << " of " << curFuncName << " of size " << dec << curBlkSize << endl;
+		cout << "SUCCESS: Inserted trace callback at 0x" << hex << curBlkAddr << " of function " 
+		<< curFuncName << " of size " << dec << curBlkSize << endl;
 
 	return 0;
 }
@@ -286,7 +273,8 @@ int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_fun
 
 void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iterator funcIter, int *blkIndex) {
 
-	/* Extract the function's name, and its pointer from the parent function vector. */
+	/* Extract the function's name, and its pointer 
+	 * from the parent function vector. */
 	
 	BPatch_function *curFunc = *funcIter;
 	char curFuncName[1024];
@@ -296,20 +284,21 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 	
 	BPatch_flowGraph *curFuncCFG = curFunc->getCFG();
 	if (!curFuncCFG) {
-		cerr << "Failed to find CFG for function " << curFuncName << endl;
+		cerr << "WARNING: Failed to find CFG for function " << curFuncName << endl;
 		return;
 	}
 
-	/* Extract the CFG's basic blocks and verify the number of blocks isn't 0. */
+	/* Extract the CFG's basic blocks and verify 
+	 * the number of blocks isn't 0. */
 	
 	BPatch_Set < BPatch_basicBlock * >curFuncBlks;
 	if (!curFuncCFG->getAllBasicBlocks(curFuncBlks)) {
-		cerr << "Failed to find basic blocks for function " << curFuncName << endl;
+		cerr << "WARNING: Failed to find basic blocks for function " << curFuncName << endl;
 		return;
 	} 
 	
 	if (curFuncBlks.size() == 0) {
-		cerr << "No basic blocks for function " << curFuncName << endl;
+		cerr << "WARNING: No basic blocks for function " << curFuncName << endl;
 		return;
 	}
 
@@ -329,40 +318,39 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 		unsigned long curBlkAddr = (*blksIter)->getStartAddress();
 		
 		/* Non-PIE binary address correction. */ 
-		
 		//curBlkAddr = curBlkAddr - (long) 0x400000;
 		
 		/* Set curBlkID as index in basic block list. */
 		
 		unsigned int curBlkID = *blkIndex;
 
-		/* If we're not instrumenting, jump to basic block/edge counting. */
-		
-		if (!outputBinary) goto save_binary_statistics;
+		/* If using forkserver, instrument the first 
+		 * block in function <main> with the callback. 
+		 * If user specifies an address, insert on the 
+		 * block whose address matches the provided address. */
 
-		/* If using forkserver, instrument the first block in function <main> with the forkserver callback. 
-		 * If user specifies an address, insert on the block whose address matches the provided address. */
+		if (outputBinary){
+			if (customFsrvAddr){			
+				if (curBlkAddr == customFsrvAddr && !fsrvInstrumented){
+		    		cerr << "WARNING: Using custom forkserver address: 0x" << hex << customFsrvAddr << endl;
+		    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
+		    		fsrvInstrumented = true;
+		    		continue;
+		    	}			
+			}
 
-		if (customEntryAddr){			
-			if (curBlkAddr == customEntryAddr && !fsrvInstrumented){
-	    		cout << "Using custom entry addr: 0x" << hex << customEntryAddr << endl;
-	    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
-	    		fsrvInstrumented = true;
-	    		continue;
-	    	}			
+			else {
+				if (string(curFuncName) == string("main") && !fsrvInstrumented) {
+		    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
+		    		fsrvInstrumented = true;
+		    		continue;
+		    	}		
+		    }
 		}
 
-		else {
-			if (string(curFuncName) == string("main") && !fsrvInstrumented) {
-	    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
-	    		fsrvInstrumented = true;
-	    		continue;
-	    	}		
-	    }
-
-		/* Other basic blocks to ignore. */
+		/* Blacklisted functions that we don't care about. */
 		
-		if (string(curFuncName) == string("init") ||
+		if ((string(curFuncName) == string("init") ||
 			string(curFuncName) == string("_init") ||
 			string(curFuncName) == string("fini") ||
 			string(curFuncName) == string("_fini") ||
@@ -390,20 +378,16 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 			string(curFuncName) == string("argp_help") ||
 			string(curFuncName) == string("argp_state_help") ||
 			string(curFuncName) == string("argp_error") ||
-			string(curFuncName) == string("argp_parse") ||
-			string(curFuncName) == string("__afl_maybe_log") ||
-			string(curFuncName) == string("__fsrvonly_store") ||
-			string(curFuncName) == string("__fsrvonly_return") ||
-			string(curFuncName) == string("__fsrvonly_setup") ||
-			string(curFuncName) == string("__fsrvonly_setup_first") ||
-			string(curFuncName) == string("__fsrvonly_forkserver") ||
-			string(curFuncName) == string("__fsrvonly_fork_wait_loop") ||
-			string(curFuncName) == string("__fsrvonly_fork_resume") ||
-			string(curFuncName) == string("__fsrvonly_die") ||
-			string(curFuncName) == string("__fsrvonly_setup_abort") ||
-			string(curFuncName) == string(".AFL_SHM_ENV")){
-			/*(string(curFuncName).substr(0,4) == string("targ") \
-			&& isdigit(string(curFuncName)[5]))) {*/
+			string(curFuncName) == string("argp_parse")) || (
+
+			/* Handle skipping of unrecognizable blocks 
+			 * (e.g., 'targ9'), if desired. */ 
+
+			skipUnrecogFuncs == true
+				&& (string(curFuncName).substr(0,4) == string("targ"))
+				&& isdigit(string(curFuncName)[5])
+			)) {	
+
 			continue;
 		}
 
@@ -414,63 +398,47 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
             continue;
         }
 
-		/* If we're not in forkserver-only mode, check the block's indx/size and skip if necessary. */
+		/* If we're not in forkserver-only mode, check the block's indx 
+		 * and size and skip if necessary. */
 		
 		if (*blkIndex < numBlksToSkip || curBlkSize < minBlkSize) {		
 			(*blkIndex)++;
 			continue;
 		}
 
-		/* AFL-Dyninst V2 performance boost no.1 */
+		/* AFL-Dyninst V2 performance boost level 1.
+		 * Cull those blocks that are the only children
+		 * of their parent blocks. */
 		
 		if (perfBoostOpt >= 1){
-			
 			if ((*blksIter)->isEntryBlock() == false) {
-				bool good = false;
-
-			BPatch_Vector <BPatch_basicBlock *> blkInBlocks;
-			(*blksIter)->getSources(blkInBlocks);
-			
-			for (unsigned int i = 0; i < blkInBlocks.size() && good == false; i++) {
-				BPatch_Vector <BPatch_basicBlock *> blkOutBlocks;
-				blkInBlocks[i]->getTargets(blkOutBlocks);
+				bool onlyChild = true;
+				BPatch_Vector <BPatch_basicBlock *> blkInBlocks;
+				(*blksIter)->getSources(blkInBlocks);
 				
-				if (blkOutBlocks.size() > 1)
-					good = true;
-			}
-			if (good == false)
-				continue;
+				for (unsigned int i = 0; i < blkInBlocks.size() 
+					&& onlyChild == true; i++) {
+
+					BPatch_Vector <BPatch_basicBlock *> blkOutBlocks;
+					blkInBlocks[i]->getTargets(blkOutBlocks);
+					
+					if (blkOutBlocks.size() > 1)
+						onlyChild = false;
+				}
+				if (onlyChild == true)
+					continue;
 	      	}
       	}
 
-		/* If path to output analyzed bb addrs list set, save the addresses of each basic block visited. */
-        
-        if (analyzedBListPath){
-            FILE *blksListFile = fopen(analyzedBListPath, "a"); 
-            fprintf(blksListFile, "%lu\n", curBlkAddr); 
-            fclose(blksListFile); 
-        } 
+      	/* Add desired tracing callback. */ 
 
         if (useBlkTracing)
-        	insertTraceCallback(appBin, curFuncName, traceBlocks, curBlk, curBlkAddr, curBlkSize, curBlkID);
+        	insertTraceCallback(appBin, curFuncName, traceBlocks, \
+        		curBlk, curBlkAddr, curBlkSize, curBlkID);
 
         if (useEdgeTracing)
-        	insertTraceCallback(appBin, curFuncName, traceEdges, curBlk, curBlkAddr, curBlkSize, curBlkID);
-
-        if (useOriginalEdgeTracing)
-        	insertTraceCallback(appBin, curFuncName, traceEdgesOrig, curBlk, curBlkAddr, curBlkSize, curBlkID);        
-
-        save_binary_statistics:
-
-       	/* Extract and increment outgoing and incoming edge counts. */
-		
-		BPatch_Vector<BPatch_edge*> blkOutEdges;
-    	(*blksIter)->getOutgoingEdges(blkOutEdges);	
-    	numOutEdges += blkOutEdges.size();
-
-    	BPatch_Vector<BPatch_edge*> blkInEdges;
-    	(*blksIter)->getIncomingEdges(blkInEdges);	
-    	numInEdges += blkInEdges.size();
+        	insertTraceCallback(appBin, curFuncName, traceEdges, \
+        		curBlk, curBlkAddr, curBlkSize, curBlkID);
 
     	/* Increment number of blocks. */
 		
@@ -481,25 +449,6 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 	}
 
 	return;
-}
-
-void initSkipAddresses(){
-    
-    if (skipListPath != NULL && access(skipListPath, R_OK) == 0){
-
-    	char line[256];
-
-        FILE *skipListFile = fopen(skipListPath, "r"); 
-
-        while (fgets(line, sizeof(line), skipListFile)){
-        	unsigned long addr = atoi(line);
-            skipAddresses.insert(addr);
-        }
-
-        fclose(skipListFile);
-
-    }
-    return;
 }
 
 int main(int argc, char **argv) {
@@ -513,7 +462,6 @@ int main(int argc, char **argv) {
 	/* Initialize libraries and addresses to skip. */
 	
 	initSkipLibraries();
-    initSkipAddresses();
 
 	/* Set up Dyninst BPatch object. */
 	
@@ -535,9 +483,9 @@ int main(int argc, char **argv) {
 
 	/* Verify existence of original binary. */
 	
-	BPatch_binaryEdit *appBin = bpatch.openBinary(originalBinary, instrumentLibraries.size() != 1);
+	BPatch_binaryEdit *appBin = bpatch.openBinary(originalBinary, modulesToInstrument.size() != 1);
 	if (appBin == NULL) {
-		cerr << "Failed to open binary" << endl;
+		cerr << "ERROR: Failed to open input binary!" << endl;
 		return EXIT_FAILURE;
 	}
 
@@ -545,8 +493,7 @@ int main(int argc, char **argv) {
 	
 	BPatch_image *appImage = appBin->getImage();
 	if (!appBin->loadLibrary(instLibrary)) {
-		cerr << "Failed to open instrumentation library " << instLibrary << endl;
-		cerr << "It needs to be located in the curent working directory." << endl;
+		cerr << "ERROR: Failed to open instrumentation library!" << instLibrary << endl;
 		return EXIT_FAILURE;
 	}
 
@@ -555,12 +502,11 @@ int main(int argc, char **argv) {
 	forkServer	 	= findFuncByName(appImage, (char *) "forkServer");
 	traceBlocks		= findFuncByName(appImage, (char *) "traceBlocks");
 	traceEdges		= findFuncByName(appImage, (char *) "traceEdges");
-	traceEdgesOrig	= findFuncByName(appImage, (char *) "traceEdgesOrig");	
 	saveRdi			= findFuncByName(appImage, (char *) "saveRdi");
 	restoreRdi		= findFuncByName(appImage, (char *) "restoreRdi");
 
-	if (!forkServer || !saveRdi || !restoreRdi || !traceBlocks || !traceEdges || ! traceEdgesOrig) {
-		cerr << "Instrumentation library lacks callbacks!" << endl;
+	if (!forkServer || !saveRdi || !restoreRdi || !traceBlocks || !traceEdges ) {
+		cerr << "ERROR: Instrumentation library lacks callbacks!" << endl;
 		return EXIT_FAILURE;
 	}
 
@@ -578,42 +524,57 @@ int main(int argc, char **argv) {
 		
 		char curModuleName[1024];
 		(*moduleIter)->getName(curModuleName, 1024);
-		if ((*moduleIter)->isSharedLib ()) {
-			if ((skipLibraries.find(curModuleName) == skipLibraries.end()) && (string(curModuleName).find(".so") != string::npos)) {
-				//if (verbose) {
-				//	cout << "Skipping library: " << curModuleName << endl;
-				//}
+		if ((*moduleIter)->isSharedLib()) {
+			if (((modulesToInstrument.find(curModuleName) == modulesToInstrument.end()) 
+				&& (string(curModuleName).find(".so") != string::npos)) 
+				|| (string(curModuleName).find("libAflDyninst") != string::npos)) {	
+				
+				cerr << "WARNING: Skipping shared module: " << curModuleName << endl;				
 				continue;
 			}
 		}
 
-		/* Extract the module's functions and iterate through its basic blocks. */
+		/* Report where we're at in analyzing the modules. */
+
+		if ((*moduleIter)->isSharedLib())
+			cout << "LOGGING: Analyzing shared module: " << curModuleName << endl;		
+		else {
+			if (verbose)
+				cerr << "LOGGING: Analyzing module: " << curModuleName << endl;		
+		}
+
+		/* Extract the module's functions and iterate 
+		 * through its basic blocks. */
 		
 		vector < BPatch_function * >*funcsInModule = (*moduleIter)->getProcedures();
 		vector < BPatch_function * >::iterator funcIter;
 		
 		for (funcIter = funcsInModule->begin(); funcIter != funcsInModule->end(); ++funcIter) { 
 
-			/* Go through each function's basic blocks and insert callbacks accordingly. */
+			/* Go through each function's basic blocks 
+			 * and insert callbacks accordingly. */
 			
 			iterateBlocks(appBin, funcIter, &blkIndex);
 		}
 	}
 
-	cout << "All done!" << endl;
-	cout << numBlks << " total blocks." << endl;
-	cout << numOutEdges << " total outgoing edges." << endl;
-	cout << numInEdges << " total incoming edges." << endl;
+	/* Report analyzed / instrumented blocks. */
 
-	/* If specified, save the instrumented binary and verify success. */
+	cout << "LOGGING: " << numBlks << " blocks analyzed" << endl;
+	cout << "LOGGING: " << numBlksInst << " blocks instrumented" << endl;
+	
+	/* If specified, save the instrumented 
+	 * binary and verify success. */
 	
 	if (outputBinary){
-		cout << "Saving the instrumented binary to " << outputBinary << " ..." << endl;
+		cout << "LOGGING: Saving output binary to " << outputBinary << " ..." << endl;
 		if (!appBin->writeFile(outputBinary)) {
-			cerr << "Failed to write output file: " << outputBinary << endl;
+			cerr << "ERROR: Failed to save output binary: " << outputBinary << endl;
 			return EXIT_FAILURE;
 		}
 	}
+
+	cout << "SUCCESS: All done!" << endl;
 
 	return EXIT_SUCCESS;
 }

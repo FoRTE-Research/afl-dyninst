@@ -10,7 +10,6 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "MurmurHash3.h"
 
 #define FORKSRV_FD 198	
 
@@ -132,7 +131,7 @@ void forkServer() {
 	}
 }
 
-/* Basic block trace. */
+/* Basic block tracing. */
 
 void traceBlocks(unsigned int curBlkID)
 {	
@@ -143,34 +142,9 @@ void traceBlocks(unsigned int curBlkID)
 		trace_bits[curBlkID]++;
 }
 
-/* Edge trace with modified hash (for hopefully fewer collisions). */
+/* Edge tracing. */
 
 void traceEdges(unsigned int curBlkID){
-
-	/* Given prev and cur integers, we first concatenate 
-	 * both integers and then take their 128-bit MurmurHash.
-	 * We then obtain the hash's 16 least-significant bits,  
-	 * and xor them with cur to calculate the SHM position. 
-	 * Finally, we right-shift prev to further reduce the
-	 * hash collision likelihood. */
-
-	char str[100];
-	sprintf(str, "%d%d", curBlkID, prevBlkID);
-	int key = strtol(str, NULL, 10);
-	uint64_t hash_otpt[2]= {0};
-	MurmurHash3_x64_128(&key, 1, 100, hash_otpt); 
-	int pos = (*hash_otpt & ((1L<<16)-1)) ^ curBlkID;
-	
-	prevBlkID = curBlkID >> 1;
-
-	if (trace_bits)
-		trace_bits[pos]++;
-}
-
-/* Original AFL edge trace. */
-
-void traceEdgesOrig(unsigned int curBlkID){
-
 	if (trace_bits) {
 		trace_bits[prevBlkID ^ curBlkID]++;
 		prevBlkID = curBlkID >> 1;
