@@ -10,9 +10,11 @@
 using namespace std;
 
 /* Command line parsing */
+
 #include <getopt.h>
 
 /* DyninstAPI includes */
+
 #include "BPatch.h"
 #include "BPatch_binaryEdit.h"
 #include "BPatch_flowGraph.h"
@@ -32,7 +34,7 @@ char *tracePath = NULL;
 bool skipMainModule = false;
 bool includeSharedLib = false;
 bool verbose = false;
-bool initInstrumented = false;
+bool fsrvInstrumented = false;
 bool useBlkTracing = false;
 bool useEdgeTracing = false;
 bool useOriginalEdgeTracing = false;
@@ -46,7 +48,7 @@ int perfBoostOpt = 0;
 
 unsigned int minBlkSize = 1;
 
-Dyninst::Address entryPoint;
+Dyninst::Address customEntryAddr;
 
 set < string > instrumentLibraries;
 set < string > runtimeLibraries;
@@ -63,6 +65,7 @@ BPatch_function *traceEdgesOrig;
 void initSkipLibraries ()
 {
 	/* List of shared libraries to skip instrumenting. */
+	
 	skipLibraries.insert ("libAflDyninst.so");		
 	skipLibraries.insert ("libc.so.6");
 	skipLibraries.insert ("libc.so.7");
@@ -93,7 +96,8 @@ static const char *USAGE = " [input_binary] [analysis_options] [inst_options]\n 
 		-O: output instrumented binary\n \
 		-F: forkserver address (required for stripped binaries)\n \
 		-B: trace blocks\n \
-		-E: trace edges\n \
+		-E: trace edges (experimental hashing)\n \
+		-e: trace edges (original AFL tracing)\n \
 		-D: attempt fixing Dyninst register bug\n \
 		-I: output list for all blocks instrumented\n \
 	Additional options:\n \
@@ -136,7 +140,7 @@ bool parseOptions(int argc, char **argv){
 				outputBinary = optarg;
 				break;	
 			case 'F':	
-				entryPoint = strtoul(optarg, NULL, 16);;
+				customEntryAddr = strtoul(optarg, NULL, 16);;
 				break;
 			case 'B':
 				useBlkTracing = true;
@@ -183,6 +187,7 @@ bool parseOptions(int argc, char **argv){
 }
 
 /* Extracts function based on input name. Useful for getting instrumentation library callbacks. */
+
 BPatch_function *findFuncByName(BPatch_image * appImage, char *curFuncName) {
 	BPatch_Vector < BPatch_function * >funcs;
 
@@ -196,12 +201,15 @@ BPatch_function *findFuncByName(BPatch_image * appImage, char *curFuncName) {
 }
 
 /* Insert callback to initialization function in the instrumentation library. */
-int insertCallToInit(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instIncFunc, BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize){
+
+int insertCallToFsrv(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instIncFunc, BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize){
 	/* init has no args */
+	
 	BPatch_Vector < BPatch_snippet * >instArgs;	 
 	BPatch_funcCallExpr instExprTrace(*instIncFunc, instArgs);
 
 	/* Insert the snippet at function entry */
+	
 	BPatchSnippetHandle *handle = appBin->insertSnippet(instExprTrace, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 
 	if (!handle) {
@@ -210,6 +218,7 @@ int insertCallToInit(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_functi
 	}
 
 	/* Print some useful info, if requested. */
+	
 	if (verbose)
 		cout << "Inserted fork server callback at 0x" << hex << curBlkAddr << " of " << curFuncName << " of size " << dec << curBlkSize << endl;
 	
@@ -219,6 +228,7 @@ int insertCallToInit(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_functi
 int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_function *instBlksIncFunc, BPatch_point *curBlk, unsigned long curBlkAddr, unsigned int curBlkSize, unsigned int curBlkID){
 
 	/* Verify curBlk is instrumentable. */
+	
 	if (curBlk == NULL) {
 		cerr << "Failed to find entry at 0x" << hex << curBlkAddr << endl;
 		return EXIT_FAILURE;
@@ -236,23 +246,28 @@ int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_fun
 	BPatchSnippetHandle *handle;
 	
 	/* RDI fix handling. */
+	
 	if (dynfix) 
 		handle = appBin->insertSnippet(instExprSaveRdi, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 	
 	/* Instruments the basic block. */
+	
 	handle = appBin->insertSnippet(instExprTrace, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 	
 	/* Wrap up RDI fix handling. */
+	
 	if (dynfix) 
 		handle = appBin->insertSnippet(instExprRestRdi, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 
 	/* Verify instrumenting worked. If all good, advance blkIndex and return. */
+	
 	if (!handle) {
 		cerr << "Failed to insert trace callback at 0x" << hex << curBlkAddr << endl;
 	}
 
 	if (handle){
 		/* If path to output instrumented bb addrs list set, save the addresses of each basic block instrumented to that file. */
+        
         if (instrumentedBListPath){
             FILE *blksListFile = fopen(instrumentedBListPath, "a"); 
             fprintf(blksListFile, "%lu,%u\n", curBlkAddr, curBlkID); 
@@ -261,6 +276,7 @@ int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_fun
 	}
 
 	/* Print some useful info, if requested. */
+	
 	if (verbose)
 		cout << "Inserted trace callback at 0x" << hex << curBlkAddr << " of " << curFuncName << " of size " << dec << curBlkSize << endl;
 
@@ -271,11 +287,13 @@ int insertTraceCallback(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_fun
 void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iterator funcIter, int *blkIndex) {
 
 	/* Extract the function's name, and its pointer from the parent function vector. */
+	
 	BPatch_function *curFunc = *funcIter;
 	char curFuncName[1024];
 	curFunc->getName(curFuncName, 1024); 
  
 	/* Extract the function's CFG. */
+	
 	BPatch_flowGraph *curFuncCFG = curFunc->getCFG();
 	if (!curFuncCFG) {
 		cerr << "Failed to find CFG for function " << curFuncName << endl;
@@ -283,46 +301,67 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 	}
 
 	/* Extract the CFG's basic blocks and verify the number of blocks isn't 0. */
+	
 	BPatch_Set < BPatch_basicBlock * >curFuncBlks;
 	if (!curFuncCFG->getAllBasicBlocks(curFuncBlks)) {
 		cerr << "Failed to find basic blocks for function " << curFuncName << endl;
 		return;
 	} 
+	
 	if (curFuncBlks.size() == 0) {
 		cerr << "No basic blocks for function " << curFuncName << endl;
 		return;
 	}
 
 	/* Set up this function's basic block iterator and start iterating. */
+	
 	BPatch_Set < BPatch_basicBlock * >::iterator blksIter;
 
 	for (blksIter = curFuncBlks.begin(); blksIter != curFuncBlks.end(); blksIter++) {
 
 		/* Get the current basic block, and its size and address. */
+		
 		BPatch_point *curBlk = (*blksIter)->findEntryPoint();
 		unsigned int curBlkSize = (*blksIter)->size();	 
+		
 		/* Compute the basic block's adjusted address.	*/
+		
 		unsigned long curBlkAddr = (*blksIter)->getStartAddress();
+		
 		/* Non-PIE binary address correction. */ 
-		curBlkAddr = curBlkAddr - (long) 0x400000;
+		
+		//curBlkAddr = curBlkAddr - (long) 0x400000;
+		
 		/* Set curBlkID as index in basic block list. */
+		
 		unsigned int curBlkID = *blkIndex;
 
 		/* If we're not instrumenting, jump to basic block/edge counting. */
+		
 		if (!outputBinary) goto save_binary_statistics;
 
-		/* If using forkserver, instrument the first block in function <main> with the forkserver callback. */
-        if (string(curFuncName) == string("main")){
+		/* If using forkserver, instrument the first block in function <main> with the forkserver callback. 
+		 * If user specifies an address, insert on the block whose address matches the provided address. */
 
-        	if (!initInstrumented){
-        		insertCallToInit(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
-        		initInstrumented = true;
-        	}
+		if (customEntryAddr){			
+			if (curBlkAddr == customEntryAddr && !fsrvInstrumented){
+	    		cout << "Using custom entry addr: " << customEntryAddr << " " << curBlkAddr << endl;
+	    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
+	    		fsrvInstrumented = true;
+	    		continue;
+	    	}			
+		}
 
-        	else continue;
-        }
+		else {
+			if (string(curFuncName) == string("main") && !fsrvInstrumented) {
+	    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
+	    		fsrvInstrumented = true;
+	    		continue;
+	    	}		
+	    }
 
 		/* Other basic blocks to ignore. */
+		
 		if (string(curFuncName) == string("init") ||
 			string(curFuncName) == string("_init") ||
 			string(curFuncName) == string("fini") ||
@@ -369,18 +408,21 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 		}
 
         /* If the address is in the list of addresses to skip, skip it. */
+		
 		if (skipAddresses.find(curBlkAddr) != skipAddresses.end()) {
         	(*blkIndex)++;
             continue;
         }
 
 		/* If we're not in forkserver-only mode, check the block's indx/size and skip if necessary. */
+		
 		if (*blkIndex < numBlksToSkip || curBlkSize < minBlkSize) {		
 			(*blkIndex)++;
 			continue;
 		}
 
 		/* AFL-Dyninst V2 performance boost no.1 */
+		
 		if (perfBoostOpt >= 1){
 			
 			if ((*blksIter)->isEntryBlock() == false) {
@@ -402,6 +444,7 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
       	}
 
 		/* If path to output analyzed bb addrs list set, save the addresses of each basic block visited. */
+        
         if (analyzedBListPath){
             FILE *blksListFile = fopen(analyzedBListPath, "a"); 
             fprintf(blksListFile, "%lu\n", curBlkAddr); 
@@ -420,6 +463,7 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
         save_binary_statistics:
 
        	/* Extract and increment outgoing and incoming edge counts. */
+		
 		BPatch_Vector<BPatch_edge*> blkOutEdges;
     	(*blksIter)->getOutgoingEdges(blkOutEdges);	
     	numOutEdges += blkOutEdges.size();
@@ -429,6 +473,7 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
     	numInEdges += blkInEdges.size();
 
     	/* Increment number of blocks. */
+		
 		(*blkIndex)++;
 		numBlks++;
 
@@ -460,18 +505,22 @@ void initSkipAddresses(){
 int main(int argc, char **argv) {
 	
 	/* Parse arguments. */
+	
 	if (!parseOptions(argc, argv)) {
 		return EXIT_FAILURE;
 	}
 
 	/* Initialize libraries and addresses to skip. */
+	
 	initSkipLibraries();
     initSkipAddresses();
 
 	/* Set up Dyninst BPatch object. */
+	
 	BPatch bpatch;
 	
 	/* Performance-related options. */ 
+	
 	bpatch.setDelayedParsing(true); 	/* ??? 							 */
 	bpatch.setLivenessAnalysis(false); 	/* ++speed on true (but crashes) */
 	bpatch.setMergeTramp(true); 		/* ++speed on true 				 */
@@ -479,11 +528,13 @@ int main(int argc, char **argv) {
 	bpatch.setTrampRecursive(true);		/* ++speed on true 				 */
  
 	/* AFL-Dyninst V2 performance boost no.2 */
+	
 	if (perfBoostOpt >= 2) {
 		bpatch.setSaveFPR(false); 		/* ++speed on false 			 */
 	}
 
 	/* Verify existence of original binary. */
+	
 	BPatch_binaryEdit *appBin = bpatch.openBinary(originalBinary, instrumentLibraries.size() != 1);
 	if (appBin == NULL) {
 		cerr << "Failed to open binary" << endl;
@@ -491,6 +542,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* Extract BPatch image of original binary. */
+	
 	BPatch_image *appImage = appBin->getImage();
 	if (!appBin->loadLibrary(instLibrary)) {
 		cerr << "Failed to open instrumentation library " << instLibrary << endl;
@@ -499,6 +551,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* Verify code coverage functions in the instrumentation library. */
+	
 	forkServer	 	= findFuncByName(appImage, (char *) "forkServer");
 	traceBlocks		= findFuncByName(appImage, (char *) "traceBlocks");
 	traceEdges		= findFuncByName(appImage, (char *) "traceEdges");
@@ -512,31 +565,37 @@ int main(int argc, char **argv) {
 	}
 
 	/* Set up modules iterator and other necessary variables. */
+	
 	vector < BPatch_module * >*modules = appImage->getModules();
 	vector < BPatch_module * >::iterator moduleIter;
 	int blkIndex = 0;
 	
 	/* For each module, iterate through its functions. */
+	
 	for (moduleIter = modules->begin(); moduleIter != modules->end(); ++moduleIter) {
 		
 		/* Extract module name and verify whether it should be skipped based. */
+		
 		char curModuleName[1024];
 		(*moduleIter)->getName(curModuleName, 1024);
 		if ((*moduleIter)->isSharedLib ()) {
 			if (!includeSharedLib || skipLibraries.find (curModuleName) != skipLibraries.end ()) {
-				if (verbose) {
-					cout << "Skipping library: " << curModuleName << endl;
-				}
+				//if (verbose) {
+				//	cout << "Skipping library: " << curModuleName << endl;
+				//}
 				continue;
 			}
 		}
 
 		/* Extract the module's functions and iterate through its basic blocks. */
+		
 		vector < BPatch_function * >*funcsInModule = (*moduleIter)->getProcedures();
 		vector < BPatch_function * >::iterator funcIter;
 		
 		for (funcIter = funcsInModule->begin(); funcIter != funcsInModule->end(); ++funcIter) { 
+			
 			/* Go through each function's basic blocks and insert callbacks accordingly. */
+			
 			iterateBlocks(appBin, funcIter, &blkIndex);
 		}
 	}
@@ -547,6 +606,7 @@ int main(int argc, char **argv) {
 	cout << numInEdges << " total incoming edges." << endl;
 
 	/* If specified, save the instrumented binary and verify success. */
+	
 	if (outputBinary){
 		cout << "Saving the instrumented binary to " << outputBinary << " ..." << endl;
 		if (!appBin->writeFile(outputBinary)) {
