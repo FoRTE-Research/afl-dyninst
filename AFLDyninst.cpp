@@ -47,7 +47,6 @@ unsigned int minBlkSize = 1;
 Dyninst::Address customFsrvAddr;
 
 set < string > modulesToInstrument;
-set < string > skipLibraries;
 set < unsigned long > skipAddresses;
 
 BPatch_function *forkServer;
@@ -55,25 +54,6 @@ BPatch_function *saveRdi;
 BPatch_function *restoreRdi;
 BPatch_function *traceBlocks;
 BPatch_function *traceEdges;
-
-void initSkipLibraries ()
-{
-	/* List of shared libraries to skip instrumenting. */
-	
-	skipLibraries.insert ("libAflDyninst.cpp");	
-	skipLibraries.insert ("libAflDyninst.so");		
-	skipLibraries.insert ("libc.so.6");
-	skipLibraries.insert ("libc.so.7");
-	skipLibraries.insert ("ld-2.5.so");
-	skipLibraries.insert ("ld-linux.so.2");
-	skipLibraries.insert ("ld-lsb.so.3");
-	skipLibraries.insert ("ld-linux-x86-64.so.2");
-	skipLibraries.insert ("ld-lsb-x86-64.so");
-	skipLibraries.insert ("ld-elf.so.1");
-	skipLibraries.insert ("ld-elf32.so.1");
-	skipLibraries.insert ("libstdc++.so.6");
-	return;
-}
 
 const char *instLibrary = "libAflDyninst.so";
 
@@ -151,11 +131,11 @@ bool parseOptions(int argc, char **argv){
 	}
 
 	if (perfBoostOpt >= 2){
-		cout << "STATUS: Applying level-1 && and level-2 performance optimizations." << endl;	
+		cerr << "WARNING: Applying level-1 && and level-2 performance optimizations." << endl;	
 	}
 
 	if (perfBoostOpt == 1){
-		cout << "STATUS: Applying level-1 performance optimizations." << endl;	
+		cerr << "WARNING: Applying level-1 performance optimizations." << endl;	
 	}
 
 	if (!outputBinary && (useEdgeTracing || useBlkTracing)){
@@ -466,10 +446,6 @@ int main(int argc, char **argv) {
 	if (!parseOptions(argc, argv)) {
 		return EXIT_FAILURE;
 	}
-
-	/* Initialize libraries and addresses to skip. */
-	
-	initSkipLibraries();
 
 	/* Set up Dyninst BPatch object. */
 	
