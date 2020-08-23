@@ -150,24 +150,32 @@ bool parseOptions(int argc, char **argv){
 		}
 	}
 
+	if (perfBoostOpt >= 2){
+		cout << "STATUS: Applying level-1 && and level-2 performance optimizations." << endl;	
+	}
+
+	if (perfBoostOpt == 1){
+		cout << "STATUS: Applying level-1 performance optimizations." << endl;	
+	}
+
 	if (!outputBinary && (useEdgeTracing || useBlkTracing)){
-		cerr << "WARNING: Output binary missing - instrumentation will not be applied!\n" << endl;	
+		cerr << "WARNING: Output binary missing - instrumentation will not be applied!" << endl;	
 	}	
 
 	if (outputBinary && (!useEdgeTracing && !useBlkTracing)){
-		cerr << "ERROR: Output binary specified but missing instrumentation mode!\n" << endl;
+		cerr << "ERROR: Output binary specified but missing instrumentation mode!" << endl;
 		cerr << "Usage: " << argv[0] << USAGE;
 		return false;	
 	}	
 
 	if (outputBinary && (useEdgeTracing && useBlkTracing)){
-		cerr << "ERROR: Cannot apply both block AND edge tracing - must select only one!\n" << endl;
+		cerr << "ERROR: Cannot apply both block AND edge tracing - must select only one!" << endl;
 		cerr << "Usage: " << argv[0] << USAGE;
 		return false;		
 	}
 
 	if (originalBinary == NULL) {
-		cerr << "ERROR: Input binary is required!\n" << endl;
+		cerr << "ERROR: Input binary is required!" << endl;
 		cerr << "Usage: " << argv[0] << USAGE;
 		return false;
 	}
@@ -529,19 +537,17 @@ int main(int argc, char **argv) {
 				&& (string(curModuleName).find(".so") != string::npos)) 
 				|| (string(curModuleName).find("libAflDyninst") != string::npos)) {	
 				
-				cerr << "WARNING: Skipping shared module: " << curModuleName << endl;				
+				/* Don't log our own library since that should be skipped anyway. */
+
+				if (string(curModuleName).find("libAflDyninst") == string::npos)
+					cerr << "WARNING: Skipping shared module: " << curModuleName << endl;				
 				continue;
 			}
 		}
 
 		/* Report where we're at in analyzing the modules. */
 
-		if ((*moduleIter)->isSharedLib())
-			cout << "LOGGING: Analyzing shared module: " << curModuleName << endl;		
-		else {
-			if (verbose)
-				cerr << "LOGGING: Analyzing module: " << curModuleName << endl;		
-		}
+		cout << "LOGGING: Analyzing module: " << curModuleName << endl;		
 
 		/* Extract the module's functions and iterate 
 		 * through its basic blocks. */
@@ -574,7 +580,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	cout << "SUCCESS: All done!" << endl;
+	cout << "SUCCESS: All done!\n" << endl;
 
 	return EXIT_SUCCESS;
 }
