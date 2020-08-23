@@ -94,7 +94,7 @@ static const char *USAGE = " [input_binary] [analysis_options] [inst_options]\n 
 		-A: output list for all blocks analyzed\n \
 	Instrumentation options:\n \
 		-O: output instrumented binary\n \
-		-F: forkserver address (required for stripped binaries)\n \
+		-F: custom forkserver address (required for stripped binaries)\n \
 		-B: trace blocks\n \
 		-E: trace edges (experimental hashing)\n \
 		-e: trace edges (original AFL tracing)\n \
@@ -345,7 +345,7 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 
 		if (customEntryAddr){			
 			if (curBlkAddr == customEntryAddr && !fsrvInstrumented){
-	    		cout << "Using custom entry addr: " << customEntryAddr << " " << curBlkAddr << endl;
+	    		cout << "Using custom entry addr: 0x" << hex << customEntryAddr << endl;
 	    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
 	    		fsrvInstrumented = true;
 	    		continue;
