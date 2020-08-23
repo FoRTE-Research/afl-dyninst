@@ -19,7 +19,7 @@ Instrumentation options:
 	-D: attempt fixing Dyninst register bug
 	-I: output list for all blocks instrumented
 Additional options:
-	-V: verbose mode\n";
+	-V: verbose mode
 ```
 
 Performance-related Bpatch options:
