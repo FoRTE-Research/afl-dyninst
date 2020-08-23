@@ -12,7 +12,7 @@ Analysis options:
 -A: output list for all blocks analyzed
 Instrumentation options:
 	-O: output instrumented binary
-	-F: forkserver address (required for stripped binaries)
+	-F: custom forkserver address (required for stripped binaries)
 	-B: trace blocks
 	-E: trace edges (experimental hashing)
 	-e: trace edges (original AFL tracing)
