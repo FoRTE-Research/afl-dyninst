@@ -401,9 +401,9 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 			string(curFuncName) == string("__fsrvonly_fork_resume") ||
 			string(curFuncName) == string("__fsrvonly_die") ||
 			string(curFuncName) == string("__fsrvonly_setup_abort") ||
-			string(curFuncName) == string(".AFL_SHM_ENV") || 
-			(string(curFuncName).substr(0,4) == string("targ") \
-				&& isdigit(string(curFuncName)[5]))) {
+			string(curFuncName) == string(".AFL_SHM_ENV")){
+			/*(string(curFuncName).substr(0,4) == string("targ") \
+			&& isdigit(string(curFuncName)[5]))) {*/
 			continue;
 		}
 
@@ -579,7 +579,7 @@ int main(int argc, char **argv) {
 		char curModuleName[1024];
 		(*moduleIter)->getName(curModuleName, 1024);
 		if ((*moduleIter)->isSharedLib ()) {
-			if (!includeSharedLib || skipLibraries.find (curModuleName) != skipLibraries.end ()) {
+			if ((skipLibraries.find(curModuleName) == skipLibraries.end()) && (string(curModuleName).find(".so") != string::npos)) {
 				//if (verbose) {
 				//	cout << "Skipping library: " << curModuleName << endl;
 				//}
@@ -593,7 +593,7 @@ int main(int argc, char **argv) {
 		vector < BPatch_function * >::iterator funcIter;
 		
 		for (funcIter = funcsInModule->begin(); funcIter != funcsInModule->end(); ++funcIter) { 
-			
+
 			/* Go through each function's basic blocks and insert callbacks accordingly. */
 			
 			iterateBlocks(appBin, funcIter, &blkIndex);
