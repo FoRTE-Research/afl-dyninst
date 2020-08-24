@@ -541,7 +541,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (!fsrvInstrumented){
+	if (outputBinary && !fsrvInstrumented){
 		cerr << "ERROR: Failed to insert forkserver callback!" << endl;
 		return EXIT_FAILURE;
 	}
