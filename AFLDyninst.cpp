@@ -102,7 +102,8 @@ bool parseOptions(int argc, char **argv){
 				outputBinary = optarg;
 				break;	
 			case 'f':	
-				customFsrvAddr = strtoul(optarg, NULL, 16);;
+				customFsrvAddr = strtoul(optarg, NULL, 16);
+				cerr << "WARNING: Using custom forkserver address: 0x" << hex << customFsrvAddr << endl;
 				break;
 			case 'b':
 				useBlkTracing = true;
@@ -194,13 +195,13 @@ int insertCallToFsrv(BPatch_binaryEdit *appBin, char *curFuncName, BPatch_functi
 	BPatchSnippetHandle *handle = appBin->insertSnippet(instExprTrace, *curBlk, BPatch_callBefore, BPatch_lastSnippet);
 
 	if (!handle) {
-		cerr << "ERROR: Failed to insert fork server callback!" << endl;
+		cerr << "ERROR: Failed to insert forkserver callback!" << endl;
 		return EXIT_FAILURE;
 	}
 
 	/* Print some useful info, if requested. */
 	
-	cout << "SUCCESS: Inserted fork server callback at 0x" << hex << curBlkAddr << " of function "
+	cout << "SUCCESS: Inserted fork servercallback at 0x" << hex << curBlkAddr << " of function "
 	<< curFuncName << " of size " << dec << curBlkSize << endl;
 	
 	return 0;
@@ -319,9 +320,8 @@ void iterateBlocks(BPatch_binaryEdit *appBin, vector < BPatch_function * >::iter
 		 * block whose address matches the provided address. */
 
 		if (outputBinary){
-			if (customFsrvAddr){			
+			if (customFsrvAddr){	
 				if (curBlkAddr == customFsrvAddr && !fsrvInstrumented){
-		    		cerr << "WARNING: Using custom forkserver address: 0x" << hex << customFsrvAddr << endl;
 		    		insertCallToFsrv(appBin, curFuncName, forkServer, curBlk, curBlkAddr, curBlkSize);
 		    		fsrvInstrumented = true;
 		    		continue;
@@ -539,6 +539,11 @@ int main(int argc, char **argv) {
 			
 			iterateBlocks(appBin, funcIter, &blkIndex);
 		}
+	}
+
+	if (!fsrvInstrumented){
+		cerr << "ERROR: Failed to insert forkserver callback!" << endl;
+		return EXIT_FAILURE;
 	}
 
 	/* Report analyzed / instrumented blocks. */
