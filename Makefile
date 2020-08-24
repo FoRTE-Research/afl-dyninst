@@ -1,6 +1,6 @@
 # AFLDyninst vars - edit DYN_ROOT accordingly
 
-DYN_ROOT 	= /home/osboxes/Desktop/dynBuildDir
+DYN_ROOT 	= /home/osboxes/Desktop/dynBuildDir10
 CC 			= gcc 
 CXX 		= g++
 CXXFLAGS 	= -g -Wall -O3 -std=c++11

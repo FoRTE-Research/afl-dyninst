@@ -32,7 +32,7 @@ bool verbose = false;
 bool skipUnrecogFuncs = true;
 bool useBlkTracing = false;
 bool useEdgeTracing = false;
-bool useDynFix = 0;
+bool useDynFix = false;
 
 int numBlksToSkip = 0;
 int numInEdges = 0;
@@ -111,6 +111,7 @@ bool parseOptions(int argc, char **argv){
 				useEdgeTracing = true;
 				break;			
 			case 'd':
+				cerr << "WARNING: Applying register save and restore fix." << endl;
 				useDynFix = true;
 				break;			
 			case 'x':
